@@ -1,0 +1,405 @@
+<?php
+/*
+ * Hook form alter implementation
+ */
+function teenie_rsvp_form_alter(&$form, &$form_state, $form_id) {
+  // Hide title field in Guest node form
+  if ($form_id == 'guest_node_form') {
+    $form['title']['#access'] = FALSE;
+  }
+
+  // Hide title field on RSVP node form
+  if ($form_id == 'rsvp_node_form') {
+    $form['title']['#access'] = FALSE;
+  }
+}
+
+/*
+ * Hook node presave implementation
+ */
+function teenie_rsvp_node_presave($node) {
+  // Automatically set title in Guest node starting with Primary Guest name
+  if ($node->type == 'guest') {
+    $node->title = $node->field_primary_guest['und'][0]['value'];
+
+    // If Secondary Guest field filled, add to title
+    if (isset($node->field_secondary_guest['und'][0]['value'])) {
+      $node->title .= ' and ';
+      $node->title .= $node->field_secondary_guest['und'][0]['value'];
+    }
+  }
+
+  // Automatically set RSVP node title based upon title of referenced Guest node
+  if ($node->type == 'rsvp') {
+    $guest_id = $node->field_guest['und'][0]['target_id'];
+    $guest = node_load($guest_id);
+    $node->title = 'RSVP: ' . $guest->title;
+  }
+}
+
+/*
+ * Hook menu implementation
+ */
+function teenie_rsvp_menu() {
+
+  // Guest list autocomplete path
+  $items['rsvp/guests'] = array(
+    'page callback' => 'teenie_rsvp_guests',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array(
+      'access content',
+    ),
+  );
+
+  // Guest selector page
+  $items['rsvp'] = array(
+    'title' => 'RSVP',
+    'weight' => 50,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array(
+      'teenie_rsvp_wedding_guest_form',
+    ),
+    'access arguments' => array(
+      'access content',
+    ),
+    'menu_name' => 'main-menu',
+  );
+
+  // RSVP form page
+  $items['rsvp/%'] = array(
+    'title callback' => 'teenie_rsvp_guest_title',
+    'title arguments' => array(1),
+    'page callback' => 'teenie_rsvp_check_guest_path',
+    'access arguments' => array(
+      'access content',
+    ),
+  );
+
+  return $items;
+}
+
+/*
+ * Form builder function for RSVP guest selector
+ */
+function teenie_rsvp_wedding_guest_form($form, &$form_state) {
+
+  // Find guest autocomplete field
+  $form['guest'] = array(
+    '#title' =>t('Start typing your name to find your invitation...'),
+    '#type' => 'textfield',
+    '#autocomplete_path' => 'rsvp/guests',
+  );
+
+  // Submit button
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Get Invitation',
+  );
+  return $form;
+}
+
+/*
+ * Form builder function for RSVP form
+ */
+function teenie_rsvp_wedding_rsvp_form($form, &$form_state) {
+  $nid = arg(1);
+  $node = node_load($nid);
+
+  // Get guest ID from URL and set as hidden entityreference
+  $form['guest'] = array(
+    '#type' => 'hidden',
+    '#value' => $nid,
+  );
+
+  // Display Guest's family suffix below title
+  if (!empty($node->field_family_suffix['und'][0]['value'])) {
+    if ($node->field_family_suffix['und'][0]['value'] == 'other') {
+      $form['family_suffix'] = array(
+        '#markup' => t('<h2>' . $node->field_other_suffix['und'][0]['value'] . '</h2>'),
+      );
+    }
+    else {
+      $form['family_suffix'] = array(
+        '#markup' => t('<h2>' . $node->field_family_suffix['und'][0]['value'] . '</h2>'),
+      );
+    }
+  }
+
+  // Display Guest's city/state at top of form
+  $city_state = array();
+  if (!empty($node->field_address['und'][0]['locality'])) {
+    $city_state[] = $node->field_address['und'][0]['locality'];
+  }
+  if (!empty($node->field_address['und'][0]['administrative_area'])) {
+    $city_state[] = $node->field_address['und'][0]['administrative_area'];
+  }
+  if (!empty($node->field_address['und'][0]['country'])) {
+    if ($node->field_address['und'][0]['country'] != 'US') {
+      $country = _addressfield_tokens_country($node->field_address['und'][0]['country']);
+      $city_state[] = $country;
+    }
+  }
+  $form['city_state'] = array(
+    '#markup' => t('<h3>' . implode(', ', $city_state) . '</h3>'),
+  );
+
+  // RSVP: Yes or No
+  $form['rsvp'] = array(
+    '#title' => t('Will you attend Jeanne and Tom\'s wedding?'),
+    '#type' => 'radios',
+    '#options' => array(
+      0 => 'Yes, will attend',
+      1 => 'No, will not attend',
+    ),
+    '#required' => TRUE,
+  );
+
+  // If yes, how many?
+  $form['number_guests'] = array(
+    '#title' => t('Total Number of Guests'),
+    '#type' => 'textfield',
+    '#states' => array(
+      'required' => array(
+        ':input[name="rsvp"]' => array(
+          'value' => 0,
+        ),
+      ),
+      // Only visible if RSVP is 'yes'
+      'visible' => array(
+        ':input[name="rsvp"]' => array(
+          'value' => 0,
+        ),
+      ),
+    ),
+  );
+
+  // If yes, any dietary restrictions?
+  $form['dietary_restrictions'] = array(
+    '#title' => t('Any dietary restrictions in your party?'),
+    '#type' => 'radios',
+    '#options' => array(
+      0 => 'No',
+      1 => 'Yes',
+    ),
+    '#states' => array(
+      // If RSVP is 'yes', field is required
+      'required' => array(
+        ':input[name="rsvp"]' => array(
+          'value' => 0,
+        ),
+      ),
+      // Only visible if RSVP is 'yes'
+      'visible' => array(
+        ':input[name="rsvp"]' => array(
+          'value' => 0,
+        ),
+      ),
+    ),
+  );
+
+  // If dietary restrictions, specify.
+  $form['explain_restrictions'] = array(
+    '#title' => t('Please specify dietary restriction'),
+    '#type' => 'textarea',
+    '#states' => array(
+      // If RSVP is 'yes', field is required
+      'required' => array(
+        ':input[name="dietary_restrictions"]' => array(
+          'value' => 1,
+        ),
+      ),
+      // Only visible if RSVP is 'yes'
+      'visible' => array(
+        ':input[name="dietary_restrictions"]' => array(
+          'value' => 1,
+        ),
+      ),
+    ),
+    '#description' => t('Please include the type of restriction and the number of people in your party to whom it applies.'),
+  );
+
+  // Submit button
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'RSVP'
+  );
+
+  return $form;
+}
+
+/*
+ * Form submit handler for guest selector
+ */
+function teenie_rsvp_wedding_guest_form_submit($form, &$form_state) {
+  $title = $form_state['values']['guest'];
+  $matches = array();
+
+  // This preg_match() looks for the last pattern like [33334] and if found
+  // extracts the numeric portion.
+  $result = preg_match('/\[([0-9]+)\]$/', $title, $matches);
+  if ($result > 0) {
+    // If $result is nonzero, we found a match and can use it as the index into
+    // $matches.
+    $nid = $matches[$result];
+    // Verify that it's a valid nid.
+    $node = node_load($nid);
+    if (!isset($node)) {
+      drupal_set_message(t('Sorry, there is no invitation in the system for that guest.'));
+      return;
+    }
+    else {
+      // Redirect to RSVP form with guest id argument.
+      $form_state['redirect'] = '/rsvp/' . $nid;
+    }
+  }
+  else {
+    drupal_set_message(t('Sorry, there is no invitation in the system for that guest.'));
+  }
+}
+
+/*
+ * Form validation handler for RSVP form
+ */
+function teenie_rsvp_wedding_rsvp_form_validate($form, &$form_state) {
+  // RSVP form's page callback function should prevent form from even loading if
+  // Guest ID isn't valid, thus this validation will probably never fail
+  $nid = $form_state['values']['guest'];
+
+  // Query DB to check for existing RSVP for guest
+  if (!empty($nid)) {
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'rsvp')
+    ->fieldCondition('field_guest', 'target_id', $nid, '=')
+    ->addMetaData('account', user_load(1));
+
+    $count = $query->count()->execute();
+
+    // If RSVP already exists, send back to guest selector w/contact info
+    if ($count > 0) {
+      drupal_set_message(t('There\'s already an RSVP for this party. If you\'d like to update the RSVP, please <a href="mailto:tom@tomboone.com">email Tom</a>.'));
+      drupal_goto('/rsvp');
+    }
+  }
+  // If no Guest ID present, redirect to guest selector with error
+  else {
+    drupal_set_message(t('There\'s no party associated with that Guest ID. Please search again.'));
+    drupal_goto('/rsvp');
+  }
+}
+
+/*
+ * Form submit handler for RSVP form
+ */
+function teenie_rsvp_wedding_rsvp_form_submit($form, &$form_state) {
+  // Set number of guests to integer in case of empty value
+  $form_state['values']['number_guests'] = (int) $form_state['values']['number_guests'];
+  $nid = $form_state['values']['guest'];
+  $node = node_load($nid);  // Load referenced guest node
+  $title = $node->title;  // Get Guest node title (for confirmation message)
+
+  // Create new RSVP node using form values
+  $entity = entity_create('node', array('type' =>'rsvp'));
+  $wrapper = entity_metadata_wrapper('node', $entity);
+  $wrapper->author->set(1);  // Set author as user 1
+  $wrapper->field_guest->set($form_state['values']['guest']);  // Guest ID
+  $wrapper->field_rsvp->set($form_state['values']['rsvp']);  // RSVP: yes/no
+  if (isset($form_state['values']['number_guests'])) {
+    $wrapper->field_total->set($form_state['values']['number_guests']);  // Total guests
+  }
+  if (isset($form_state['values']['dietary_restrictions'])) {
+    $wrapper->field_dietary_restrictions->set($form_state['values']['dietary_restrictions']);  // Dietary restrictions: yes/no
+  }
+  if (isset($form_state['values']['explain_restrictions'])) {
+    $wrapper->field_explain_restrictions->set($form_state['values']['explain_restrictions']);  // Explain restrictions
+  }
+  $wrapper->save();  // save RSVP node
+
+  $form_state['redirect'] = '/rsvp';  // Redirect back to guest selector
+  if ($form_state['values']['rsvp'] == 0) {  // If 'yes,' set personalized confirmation
+    $number = $form_state['values']['number_guests'];
+    drupal_set_message(t('Confirmed: You RSVP\'d ' . $number . ' guests for ' . $title . '. See you in Annapolis!'));
+  }
+  else {  // If 'no,'' set regretful confirmation
+    drupal_set_message(t('You RSVP\'d "No." We\'ll miss you in Annapolis.'));
+  }
+}
+
+/*
+ * Query to populate autocomplete guest search field
+ */
+function teenie_rsvp_guests($string = "") {
+
+  //Query DB to get guest list
+  $matches = array();
+  if ($string) {
+    $result = db_select('node')
+      ->fields('node', array('nid', 'title'))
+      ->condition('title', '%' . db_like($string) . '%', 'LIKE')
+      ->condition('type', 'guest')
+      ->execute();
+
+    // save the query to matches
+    foreach ($result as $row) {
+      $matches[$row->title . " [$row->nid]"] = check_plain($row->title);
+    }
+  }
+  // Return the result to the form in json
+  drupal_json_output($matches);
+}
+
+// Function to set page title on RSVP page based on guest name
+function teenie_rsvp_guest_title($guest) {
+  $nid = $guest;
+  $node = node_load($nid);
+  if (!empty($node->title)) {
+    $invite = $node->title;
+    return t('@invite', array(
+      '@invite' => $invite,
+    ));
+  }
+}
+
+// Function to check if guest id in rsvp path exists or already has an rsvp.
+function teenie_rsvp_check_guest_path() {
+  $guest = arg(1);  // Get guest ID from URL
+  $node = node_load($guest);  // Load Guest node array
+  if (!empty($node)) {
+    $type = $node->type;  // Get node type from array
+    $nid = $node->nid;  // Get node ID from array
+  }
+
+  // Check if node ID exists or is not a Guest type node
+  if (!isset($nid) || $type != 'guest') {
+
+    // If Node ID doesn't exist or is for a type other than Guest, redirect
+    // user back to guest selector.
+    drupal_set_message(t('There\'s no party associated with that Guest ID. Please search again.'));
+    $form = drupal_goto('/rsvp');
+  }
+
+  // Check if an RSVP already exists for selected Guest
+  else {
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'rsvp')
+    ->fieldCondition('field_guest', 'target_id', $nid, '=')
+    ->addMetaData('account', user_load(1));
+
+    $count = $query->count()->execute();
+
+    // If there's already an RSVP, redirect uder back to guest selector and
+    // provide them contact info to make changes
+    if ($count > 0) {
+      drupal_set_message(t('There\'s already an RSVP for this party. If you\'d like to update the RSVP, please <a href="mailto:tom@tomboone.com">email Tom</a>.'));
+      $form = drupal_goto('/rsvp');
+      return;
+    }
+
+    // If it's an existing guest with no RSVP already submitted, load RSVP form
+    else {
+      $form = drupal_get_form('teenie_rsvp_wedding_rsvp_form');
+    }
+  }
+  return $form;
+}

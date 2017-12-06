@@ -1,0 +1,273 @@
+<?php
+/*
+ * Install function to create Guest content type
+ */
+function teenie_rsvp_install() {
+  $types = array(
+    array(
+      'type' => 'guest',
+      'name' => st('Guest'),
+      'base' => 'node_content',
+      'description' => st('Use <em>Guest</em> for invited wedding guests. Each guest node represents the entire party covered by a single wedding invitation.'),
+      'custom' => 1,
+      'modified' => 1,
+      'locked' => 0,
+    ),
+    array(
+      'type' => 'rsvp',
+      'name' => st('RSVP'),
+      'base' => 'node_content',
+      'description' => st('Use <em>RSVP</em> content for recording an invited guest\'s response to an invitation.'),
+      'custom' => 1,
+      'modified' => 1,
+      'locked' => 0,
+    ),
+  );
+  foreach ($types as $type) {
+    $type = node_type_set_defaults($type);
+    node_type_save($type);
+  }
+
+  $fields = array(
+    array(
+      'field_name' => 'field_primary_guest',
+      'type' => 'text',
+      'module' => 'text',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_secondary_guest',
+      'type' => 'text',
+      'module' => 'text',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_additional_guests',
+      'type' => 'number_integer',
+      'module' => 'number',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_family_suffix',
+      'type' => 'list_text',
+      'module' => 'list',
+      'cardinality' => 1,
+      'settings' => array(
+        'allowed_values' => array(
+          'and Family' => 'and Family',
+          'and Guest' => 'and Guest',
+          'other' => 'other',
+        ),
+      ),
+    ),
+    array(
+      'field_name' => 'field_other_suffix',
+      'type' => 'text',
+      'module' => 'text',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_address',
+      'type' => 'addressfield',
+      'module' => 'addressfield',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_phone',
+      'type' => 'telephone',
+      'module' => 'telephone',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_email',
+      'type' => 'email',
+      'module' => 'email',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_guest',
+      'type' => 'entityreference',
+      'module' => 'entityreference',
+      'cardinality' => 1,
+      'settings' => array(
+        'handler_settings' => array(
+          'target_bundles' => array(
+            'guest' => 'Guest',
+          ),
+        ),
+      ),
+    ),
+    array(
+      'field_name' => 'field_rsvp',
+      'type' => 'list_integer',
+      'module' => 'integer',
+      'cardinality' => 1,
+      'settings' => array(
+        'allowed_values' => array(
+          0 => 'Will Attend',
+          1 => 'Will Not Attend',
+        ),
+      ),
+    ),
+    array(
+      'field_name' => 'field_total',
+      'type' => 'number_integer',
+      'module' => 'number',
+      'cardinality' => 1,
+    ),
+    array(
+      'field_name' => 'field_dietary_restrictions',
+      'type' => 'list_boolean',
+      'module' => 'list',
+      'cardinality' => 1,
+      'settings' => array(
+        'allowed_values' => array(
+          0 => 'No',
+          1 => 'Yes',
+        ),
+      ),
+    ),
+    array(
+      'field_name' => 'field_explain_restrictions',
+      'type' => 'text_long',
+      'module' => 'text',
+      'cardinality' => 1,
+    ),
+  );
+  foreach ($fields as $field) {
+    $field = field_create_field( $field );
+  }
+
+  $instances = array(
+    array(
+      'field_name' => 'field_primary_guest',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Primary Guest Name',
+      'required' => TRUE,
+      'widget' => array(
+        'type' => 'textfield',
+      ),
+    ),
+    array(
+      'field_name' => 'field_secondary_guest',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Secondary Guest Name',
+      'widget' => array(
+        'type' => 'textfield',
+      ),
+    ),
+    array(
+      'field_name' => 'field_additional_guests',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'No. of Additional Guests',
+      'widget' => array(
+        'type' => 'textfield',
+      ),
+    ),
+    array(
+      'field_name' => 'field_family_suffix',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Family/Guest suffix',
+      'widget' => array(
+        'type' => 'options_select',
+      ),
+    ),
+    array(
+      'field_name' => 'field_other_suffix',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Other',
+      'description' => 'If you selected "other" for Family/Guest suffix, please enter the invitation\'s custom suffix.',
+      'widget' => array(
+        'type' => 'text_textfield',
+      ),
+    ),
+    array(
+      'field_name' => 'field_address',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Address',
+      'widget' => array(
+        'type' => 'addressfield_standard',
+        'settings' => array(
+          'default_country' => 'US',
+        ),
+      ),
+    ),
+    array(
+      'field_name' => 'field_phone',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Phone',
+      'widget' => array(
+        'type' => 'telephone_default',
+      ),
+    ),
+    array(
+      'field_name' => 'field_email',
+      'entity_type' => 'node',
+      'bundle' => 'guest',
+      'label' => 'Email',
+      'widget' => array(
+        'type' => 'email_textfield',
+      ),
+    ),
+    array(
+      'field_name' => 'field_guest',
+      'entity_type' => 'node',
+      'bundle' => 'rsvp',
+      'label' => 'Guest',
+      'required' => TRUE,
+      'widget' => array(
+        'type' => 'options_select',
+      ),
+    ),
+    array(
+      'field_name' => 'field_rsvp',
+      'entity_type' => 'node',
+      'bundle' => 'rsvp',
+      'label' => 'RSVP',
+      'required' => TRUE,
+      'widget' => array(
+        'type' => 'options_button',
+      ),
+    ),
+    array(
+      'field_name' => 'field_total',
+      'entity_type' => 'node',
+      'bundle' => 'rsvp',
+      'label' => 'No. of Guests',
+      'widget' => array(
+        'type' => 'number',
+      ),
+    ),
+    array(
+      'field_name' => 'field_dietary_restrictions',
+      'entity_type' => 'node',
+      'bundle' => 'rsvp',
+      'label' => 'Any dietary restrictions in your party?',
+      'widget' => array(
+        'type' => 'options_onoff',
+        'settings' => array(
+          'display_label' => 1,
+        ),
+      ),
+    ),
+    array(
+      'field_name' => 'field_explain_restrictions',
+      'entity_type' => 'node',
+      'bundle' => 'rsvp',
+      'label' => 'Explain your dietary restrictions',
+      'widget' => array(
+        'type' => 'text_textarea',
+      ),
+    ),
+  );
+  foreach ($instances as $instance) {
+    field_create_instance($instance);
+  }
+}

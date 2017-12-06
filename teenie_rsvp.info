@@ -1,0 +1,26 @@
+name = Teenie RSVP
+description = Collect and process RSVPs from guests
+core = 7.x
+package = Team Teenie
+
+dependencies[] = drupal:node
+
+dependencies[] = drupal:field
+dependencies[] = drupal:list
+dependencies[] = drupal:number
+dependencies[] = drupal:options
+dependencies[] = drupal:text
+
+dependencies[] = addressfield:addressfield
+dependencies[] = email:email
+dependencies[] = telephone:telephone
+
+dependencies[] = entity:entity
+dependencies[] = entityreference:entityreference
+
+dependencies[] = addressfield_tokens:addressfield_tokens
+dependencies[] = token:token
+dependencies[] = entity:entity_token
+
+dependencies[] = ctools:ctools
+dependencies[] = views:views
