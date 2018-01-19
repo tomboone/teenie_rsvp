@@ -354,8 +354,8 @@ function teenie_rsvp_guest_title($guest) {
   $node = node_load($nid);
   if (!empty($node->title)) {
     $invite = $node->title;
-    return t('@invite', array(
-      '@invite' => $invite,
+    return t('!invite', array(
+      '!invite' => $invite,
     ));
   }
 }
